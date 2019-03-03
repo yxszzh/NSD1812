@@ -1,0 +1,244 @@
+awk 不能写入文件
+文档过滤工具，逐行处理，查找功能强大
+awk '{print}' a.txt   //输出a.txt文档每行
+awk '/root/{print}' a.txt  //输出a.txt文档有root的行
+awk '{print $1}' a.txt  //输出a.txt文档每行的第1列，默认以空格为列的分隔
+
+free -m 
+[root@desktop0 opt]# free -m
+             total       used       free     shared    buffers     cached
+Mem:           817        738         78         16          0        254
+-/+ buffers/cache:        483        333
+Swap:            0          0          0
+[root@desktop0 opt]# free -m | awk '/^M/{print $4}'
+78
+
+[root@desktop0 opt]# head -5 /etc/passwd > a.txt
+[root@desktop0 opt]# cat a.txt
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+[root@desktop0 opt]# awk -F: '/^root/{print $6}' a.txt
+/root  //使用冒号作为分隔符，输出以root开头的行的第6列
+[root@desktop0 opt]# awk -F[:/] '{print $10}' a.txt
+bash  //使用冒号和/作为分隔符，输出每行的第10列
+nologin
+nologin
+sbin
+
+
+awk常用内置变量：
+$0 文本当前行的全部内容
+
+$1 文本的第1列
+
+$2 文件的第2列
+
+$3 文件的第3列，依此类推
+
+NR 文件当前行的行号
+
+NF 文件当前行的列数（有几列）
+awk -F: '{print "当前有"NF"列"}' u  //输出常量与变量，常量要用引号
+
+使用awk获取服务器接收的网络流量
+要求在屏幕输出：当前主机接收的流量是xxxx
+[root@desktop0 opt]# ifconfig eth0 | awk -F[\(\)] '/RX p/{print "当前主机接收的 流量是"$2}'
+当前主机接收的流量是286.9 KiB
+RX 接收的流量    TX 发送的流量
+
+要求在屏幕输出：根分区的容量是xxxx
+[root@desktop0 opt]# df -h | awk '/\/$/{print "根分区的容量是" $2}'
+根分区的容量是10G
+
+根据/var/log/secure安全日志文件，用awk过滤远程连接密码失败的IP地址
+[root@desktop0 opt]# cat /var/log/secure
+Feb 20 10:53:29 localhost sshd[30158]: Failed password for root from 172.25.0.11 port 51733 ssh2
+Feb 20 10:53:36 localhost sshd[30158]: Failed password for root from 172.25.0.11 port 51733 ssh2
+[root@desktop0 opt]# awk '/Failed/{print $11}' /var/log/secure
+172.25.0.11
+172.25.0.11
+
+awk流程化输出  BEGIN{}  //逐行任务之前的任务
+             END{}    //逐行任务之后的任务
+[root@desktop0 opt]# awk 'BEGIN{x=0}/bash$/{x++} END{print x}' /etc/passwd
+2  //在逐行任务之前先定义变量x，然后执行逐行任务，每看到一个以bash结尾的行就把x加1，逐行任务之后输出x的值，统计多少账户用了bash
+
+[root@desktop0 opt]# awk -F: 'BEGIN{print "User\tUID\tHome"} {print $1 "\t"  $3  "\t"  $6}  END{print "Total",NR,"lines."}' a.txt
+User	UID	Home
+root	0	/root
+bin	1	/bin
+daemon	2	/sbin
+adm	3	/var/adm
+lp	4	/var/spool/lpd
+Total 5 lines.
+
+awk处理条件
+1认识awk处理条件的设置
+[root@desktop0 opt]# awk -F: '/^(root|adm)/{print $1,$3}' a.txt 
+root 0 //输出root或adm开头的行并输出第1列和第7列
+adm 3
+[root@desktop0 opt]# awk -F: '$1~/root/' a.txt 
+root:x:0:0:root:/root:/bin/bash  //输出root是第1列的行
+[root@desktop0 opt]# awk -F: '$7!~/nologin$/{print $1,$7}' a.txt 
+root /bin/bash //找到第7列不是nologin结尾的行并输出第1列和第7列
+
+2使用数值/字符串比较设置条件
+
+比较符号：==(等于) !=（不等于） >（大于）
+
+>=（大于等于） <（小于） <=（小于等于）
+
+[root@desktop0 opt]# awk -F: 'NR==3{print}' a.txt  //输出第3行
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+
+[root@desktop0 opt]# awk -F: '$3<10{print $1,$3}' a.txt 
+root 0  //找到第3列小于10的行，并输出第1列，第3列
+bin 1
+daemon 2
+adm 3
+lp 4
+
+[root@desktop0 opt]# awk -F: '$1=="root"' a.txt //输出第1列是root的行
+root:x:0:0:root:/root:/bin/bash
+
+3逻辑测试条件 && 和  | | 或
+注意逻辑错误 $3>100&&$3<10 没有大于100又小于10的
+
+[root@desktop0 opt]# awk -F: '$3>10 && $3<20' a.txt //输出第3列大于10并且第3列小于20的行
+[root@desktop0 opt]# awk -F: '$3>1000 || $3<10' a.txt 
+root:x:0:0:root:/root:/bin/bash  //输出第3列大于1000或者第3列小于10的行
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+
+4数学运算
+
+    [root@svr5 ~]# awk 'BEGIN{x++;print x}'
+    1
+    [root@svr5 ~]# awk 'BEGIN{x=8;print x+=2}'
+    10
+
+列出100以内整数中7的倍数或是含7的数：
+
+    [root@svr5 ~]# seq 100 | awk '$1%7==0||$1~/7/'
+    7
+    14
+
+课件上案例3
+#!/bin/bash
+u=`awk -F: '/bash$/{print $1}' /etc/passwd`
+for i in $u
+do
+	grep ^$i: /etc/shadow | awk -F: '{print $1,"-->",$2}'
+done
+方法2
+#/bin/bash
+A=$(awk -F:  '/bash$/{print $1}' /etc/passwd)       
+for i in $A
+do
+        grep $i /etc/shadow | awk -F: '{print $1,"-->",$2}'  
+done
+
+awk数组  循环的是下标
+
+1）数组的语法格式
+
+数组是一个可以存储多个值的变量，具体使用的格式如下：
+
+定义数组的格式：数组名[下标]=元素值
+
+调用数组的格式：数组名[下标]
+
+遍历数组的用法：for(变量 in 数组名){print 数组名[变量]}
+
+使用awk数组+for循环实现文档的复杂过滤
+先准备素材文档ip，内容为:
+[root@desktop0 opt]# vim ip
+[root@desktop0 opt]# cat ip
+192.168.0.1
+192.168.0.2
+192.168.0.2
+192.168.0.3
+192.168.0.3
+192.168.0.3
+192.168.0.3
+然后使用awk获取该文档中所有出现的ip地址，以及出现的次数
+[root@desktop0 opt]# awk '{ip[$1]++}END{for(i in ip){print i,ip[i]}}' ip
+192.168.0.1 1
+192.168.0.2 2
+192.168.0.3 4
+
+
+使用awk检查httpd服务的访问者以及访问次数
+1安装httpd     yum -y install httpd
+2开启服务         systemctl restart httpd
+3关闭防火墙和selinux
+4用真机或其他虚拟机访问该web网站，可以用不同主机多访问几次,访问记录被记录在http的日志中/var/log/httpd/access_log,每行就是一次访问记录，里面包含访问者的ip
+5 awk '{ip[$1]++}END{for(i in ip){print i,ip[i]}}' /var/log/httpd/access_log | sort -k 2 -r
+[root@desktop0 httpd]# awk '{ip[$1]++}END{for(i in ip){print i,ip[i]}}' /var/log/httpd/access_log | sort -k 2 -r
+172.25.0.250 9
+172.25.0.10 3
+172.25.0.11 13
+
+[root@desktop0 opt]# vim aa.txt
+[root@desktop0 opt]# cat aa.txt 
+3 5 2 1
+1 2 5 4
+5 4 2 6
+8 5 9 3
+3 1 6 7
+[root@desktop0 opt]# cat aa.txt | sort   //默认第1列升序排列
+1 2 5 4
+3 1 6 7
+3 5 2 1
+5 4 2 6
+8 5 9 3
+[root@desktop0 opt]# cat aa.txt | sort -r  //默认第1列降序排列
+8 5 9 3
+5 4 2 6
+3 5 2 1
+3 1 6 7
+1 2 5 4
+[root@desktop0 opt]# cat aa.txt | sort -k 2  //第2列升序排列
+3 1 6 7
+1 2 5 4
+5 4 2 6
+3 5 2 1
+8 5 9 3
+[root@desktop0 opt]# cat aa.txt | sort -k 2 -r  //第2列降序排列
+8 5 9 3
+3 5 2 1
+5 4 2 6
+1 2 5 4
+3 1 6 7
+[root@desktop0 opt]# cat aa.txt | sort -k 4   //第4列升序排列
+3 5 2 1
+8 5 9 3
+1 2 5 4
+5 4 2 6
+3 1 6 7
+[root@desktop0 opt]# cat aa.txt | sort -k 4 -r //第4列降序排列
+3 1 6 7
+5 4 2 6
+1 2 5 4
+8 5 9 3
+3 5 2 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
